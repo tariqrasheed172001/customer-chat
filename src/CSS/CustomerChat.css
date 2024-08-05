@@ -1,0 +1,189 @@
+/* Container for the chat widget */
+.chat-container {
+    position: fixed;
+    bottom: 20px;
+    right: 200px;
+    z-index: 1000;
+  }
+  
+
+  .close-button {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    height: 30px;
+    width: 30px;
+    border-radius: 50%;
+    background: none;
+    border: none;
+    font-size: 15px;
+    cursor: pointer;
+    outline: none;
+    transition: background 0.3s ease;
+  }
+
+  .close-button:hover{
+    background-color: rgb(193, 109, 212);
+  }
+  
+  /* Toggle icon styling */
+  .chat-toggle-icon {
+    cursor: pointer;
+    font-size: 28px;
+    height: 50px;
+    width: 50px;
+    border-radius: 50%;
+    color: #007bff;
+    background: #fff;
+    box-shadow: 0 0 5px rgb(0, 0, 0);
+    padding: 2px;
+    margin-right: 500px;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+  
+  .chat-toggle-icon:hover {
+    background: #2a4cad;
+    color: #fff;
+  }
+
+  .chat-toggle-icon img{
+    height: 50px;
+    width: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  
+  /* Messages container */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  /* Message styling */
+  .message {
+    display: flex;
+    align-items: flex-start;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    max-width: 80%;
+  }
+  
+  /* Styling for customer messages */
+  .message.customer {
+    background: #e1f5fe;
+    align-self: flex-end;
+    border-bottom-right-radius: 0;
+    border-top-right-radius: 0;
+  }
+  
+  /* Styling for agent messages */
+  .message.agent {
+    background: #e8f5e9;
+    align-self: flex-start;
+    border-bottom-left-radius: 0;
+    border-top-left-radius: 0;
+  }
+  
+  /* Styling for message sender */
+  .message strong {
+    margin-right: 8px;
+    font-size: 14px;
+  }
+  
+  /* Customer message sender color */
+  .message.customer strong {
+    color: #007bff;
+  }
+  
+  /* Agent message sender color */
+  .message.agent strong {
+    color: #388e3c;
+  }
+  
+  /* Input area styling */
+  input[type="text"] {
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    padding: 5px 15px;
+    font-size: 15px;
+    width: calc(100% - 70px);
+    margin-right: 10px;
+    outline: none;
+    box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.1);
+    transition: border-color 0.3s ease;
+  }
+  
+  input[type="text"]:focus {
+    border-color: #007bff;
+  }
+  
+  /* Send button styling */
+  .input-field-button-wrapper button {
+    border: none;
+    background: #007bff;
+    color: white;
+    border-radius: 20px;
+    padding: 10px 20px;
+    font-size: 14px;
+    cursor: pointer;
+    outline: none;
+    transition: background 0.3s ease;
+  }
+  
+  .input-field-button-wrapper button:hover {
+    background: #0056b3;
+  }
+  
+  .chat-widget {
+    display: none;
+    width: 500px;
+    height: 600px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    padding: 10px;
+    flex-direction: column;
+    overflow-y: auto;
+    transition: all 0.3s ease;
+  }
+  
+  .chat-widget.open {
+    display: flex;
+  }
+  
+  .message.customer {
+    justify-content: flex-end;
+  }
+  
+  .message.agent {
+    justify-content: flex-start;
+  }
+  
+  .message strong {
+    margin-right: 5px;
+  }
+  
+  .message.customer strong {
+    color: #007bff; /* Color for customer messages */
+  }
+  
+  .message.agent strong {
+    color: #28a745; /* Color for agent messages */
+  }
+
+  .send-button{
+    font-size: 8px;
+  }
+
+  .input-field-button-wrapper{
+    display: flex;
+  }
+
+  
