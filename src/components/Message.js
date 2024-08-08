@@ -15,7 +15,6 @@ import FeedbackForm from "./FeedbackForm";
 const socket = io("http://localhost:8000");
 
 const Message = ({
-  messages,
   setMessage,
   message,
   setAttachment,
@@ -23,9 +22,9 @@ const Message = ({
   sendMessage,
   isOpen,
   goBack,
-  currentChat,
-  setCurrentChat,
-  setChats,
+  selectedConversation,
+  setSelectedConversation, 
+  setConversations
 }) => {
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -33,7 +32,6 @@ const Message = ({
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const recognitionRef = useRef(null);
-  const [status, setStatus] = useState(currentChat.ticketDetails.status);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -46,8 +44,6 @@ const Message = ({
       reader.readAsDataURL(file);
     }
   };
-
-  console.log("currentCkajdf:", currentChat);
 
   const handleIconClick = () => {
     fileInputRef.current.click();
@@ -228,56 +224,6 @@ const Message = ({
     }
   };
 
-  const handleStatusChange = (event) => {
-    const newStatus = event.target.value;
-    const ticketId = currentChat.ticketDetails._id;
-    const roomId = currentChat.roomId;
-
-    socket.emit(
-      "updateTicketStatus",
-      {
-        ticketId,
-        status: newStatus,
-      },
-      (response) => {
-        if (response.success) {
-          console.log("Ticket status updated successfully.", response);
-
-          // Update the status in the current chat
-          setStatus(newStatus);
-          setCurrentChat((prev) => ({
-            ...prev,
-            ticketDetails: {
-              ...prev.ticketDetails,
-              status: newStatus,
-            },
-          }));
-
-          // Update the status in the chats array
-          console.log("roomId", roomId);
-          setChats((prevChats) =>
-            prevChats.map((chat) =>
-              chat.assignedRoom.roomId === roomId
-                ? {
-                    ...chat,
-                    assignedRoom: {
-                      ...chat.assignedRoom,
-                      ticketDetails: {
-                        ...chat.assignedRoom.ticketDetails,
-                        status: newStatus,
-                      },
-                    },
-                  }
-                : chat
-            )
-          );
-        } else {
-          console.error("Error updating ticket status:", response.message);
-        }
-      }
-    );
-  };
-
   return (
     <>
       {isOpen && (
@@ -288,42 +234,36 @@ const Message = ({
               className="back-button bg-gray-300 hover:bg-gray-400 p-2 rounded-md m-2"
             >
               <ArrowUturnLeftIcon className="h-5" />
-            </button>{" "}
-            <p>ID: {currentChat.ticketDetails.ticketNumber}</p>
+            </button>
+            <p>ID: {selectedConversation.ticketId.ticketNumber}</p>
           </div>
-          <div className="flex items-center justify-center cursor-pointer">
-            <p className="text-3xl">
-              Status:{" "}
-              {status === "closed" && (
-                <span className="text-2xl text-red-500">Closed</span>
-              )}{" "}
-            </p>
-            {status !== "closed" && (
-              <select
-                id="status-select"
-                value={status}
-                onChange={handleStatusChange}
-                className={`ml-2 mt-2 ${status === "open" ? "border-green-500" : "border-yellow-500"}  border-2 cursor-pointer rounded-md shadow-lg`}
-              >
-                <option value="open">Open</option>
-                <option value="resolved">Resolved</option>
-              </select>
-            )}
-          </div>
+          {selectedConversation && (
+            <div className="flex items-center justify-center cursor-pointer">
+              <p className="text-3xl">
+                Status:{" "}
+                <span
+                  className={`text-3xl ${
+                    selectedConversation.ticketId.status === "open" && "text-green-500"
+                  } ${selectedConversation.ticketId.status === "resolved" && "text-yellow-500"} ${
+                    selectedConversation.ticketId.status === "closed" && "text-red-500"
+                  }`}
+                >
+                  {selectedConversation.ticketId.status}
+                </span>
+              </p>
+            </div>
+          )}
           <hr className="mt-4 h-0.5 bg-gray-300"></hr>
-          {status === "resolved" && (
+          {selectedConversation.ticketId.status === "resolved" && (
             <FeedbackForm
-              ticketId={currentChat.ticketDetails._id}
-              setCurrentChat={setCurrentChat}
-              currentChat={currentChat}
-              setStatus={setStatus}
-              setChats={setChats}
-              roomId={currentChat.roomId}
+              selectedConversation={selectedConversation}
+              setSelectedConversation={setSelectedConversation}
+              setConversations={setConversations}
             />
           )}
-          {(status === "open" || status === "closed") && (
+          {(selectedConversation.ticketId.status === "open" || selectedConversation.ticketId.status === "closed") && (
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.map((msg, index) => (
+              {selectedConversation.messages.map((msg, index) => (
                 <div
                   key={index}
                   className={`flex items-${
@@ -338,34 +278,47 @@ const Message = ({
                     />
                   )}
                   <div className="block">
-                  {msg.attachment && (
-                    <div
-                      className={`${
-                        msg.sender === "Customer"
-                          ? "bg-blue-500"
-                          : "bg-green-500"
-                      } p-1 ${
-                        msg.attachmentType.includes("audio")
-                          ? "rounded-full"
-                          : "rounded-lg"
-                      } mb-1 `}
-                    >
-                      {renderAttachment(msg.attachment, msg.attachmentType)}
-                    </div>
-                  )}
-                  {msg.message && (
-                    <div
-                      className={`bg-${
-                        msg.sender === "Customer" ? "blue-500" : "green-500"
-                      } p-2 rounded-lg ${
-                        msg.sender === "Customer"
-                          ? "text-white"
-                          : "text-gray-800"
-                      }`}
-                    >
-                      <p className="text-sm">{msg.message}</p>
-                    </div>
-                  )}
+                    {msg.attachment && (
+                      <div
+                        className={`${
+                          msg.sender === "Customer"
+                            ? "bg-blue-500"
+                            : "bg-green-500"
+                        } p-1 ${
+                          msg.attachmentType.includes("audio")
+                            ? "rounded-full"
+                            : "rounded-lg"
+                        } mb-1 `}
+                      >
+                        {renderAttachment(msg.attachment, msg.attachmentType)}
+                      </div>
+                    )}
+                    {msg.message && (
+                      <div
+                        className={`bg-${
+                          msg.sender === "Customer" ? "blue-500" : "green-500"
+                        } p-2 rounded-lg ${
+                          msg.sender === "Customer"
+                            ? "text-white"
+                            : "text-gray-800"
+                        }`}
+                      >
+                        <p className="text-sm">{msg.message}</p>
+                        <p
+                          className={`${
+                            msg.sender === "Customer"
+                              ? "text-gray-300"
+                              : "text-teal-800"
+                          } text-xs pl-5 pb-0 pt-1 mr-0 right-0`}
+                        >
+                          {new Date(msg.timestamp).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   {msg.sender === "Customer" && (
                     <img
@@ -378,7 +331,7 @@ const Message = ({
               ))}
             </div>
           )}
-          {status === "open" && (
+          {selectedConversation.ticketId.status === "open" && (
             <div className="p-1 border-t border-gray-200">
               <div className="relative flex items-center">
                 <input

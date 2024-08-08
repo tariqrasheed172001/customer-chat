@@ -4,12 +4,9 @@ import io from "socket.io-client";
 const socket = io("http://localhost:8000");
 
 const FeedbackForm = ({
-  ticketId,
-  setCurrentChat,
-  currentChat,
-  setStatus,
-  setChats,
-  roomId,
+  selectedConversation,
+  setSelectedConversation,
+  setConversations,
 }) => {
   const [rating, setRating] = useState("");
   const [resolved, setResolved] = useState("");
@@ -18,42 +15,44 @@ const FeedbackForm = ({
   const handleSubmit = (e) => {
     e.preventDefault();
     const feedbackData = { rating, resolved, comments };
+    const ticketId = selectedConversation.ticketId._id;
+    const roomId = selectedConversation.roomId;
 
     // Emit the closeTicket event with feedback data and ticket ID
     socket.emit(
       "closeTicket",
-      { ticketId, feedback: feedbackData },
+      { ticketId, roomId, feedback: feedbackData },
       (response) => {
         if (response.success) {
           console.log("Ticket closed successfully:", response);
           // Update the status in the current chat
-          setStatus("closed");
-          setCurrentChat((prev) => ({
-            ...prev,
-            ticketDetails: {
-              ...prev.ticketDetails,
-              status: "closed",
-            },
-          }));
 
-          // Update the status in the chats array
-          console.log("roomId", roomId);
-          setChats((prevChats) =>
-            prevChats.map((chat) =>
-              chat.assignedRoom.roomId === roomId
-                ? {
-                    ...chat,
-                    assignedRoom: {
-                      ...chat.assignedRoom,
-                      ticketDetails: {
-                        ...chat.assignedRoom.ticketDetails,
-                        status: "closed",
-                      },
-                    },
+          setConversations((prevConversations) => {
+            return prevConversations.map((conversation) => {
+              if (conversation.roomId === roomId) {
+                // Update the status of the ticketId in the selected conversation
+                return {
+                  ...conversation,
+                  ticketId: {
+                    ...conversation.ticketId,
+                    status: 'closed'
                   }
-                : chat
-            )
-          );
+                };
+              }
+              return conversation;
+            });
+          });
+    
+          if (selectedConversation && roomId === selectedConversation.roomId) {
+            setSelectedConversation((prevSelectedConversation) => ({
+              ...prevSelectedConversation,
+              ticketId:{
+                ...prevSelectedConversation.ticketId,
+                status: 'closed'
+              }
+            }));
+          }
+
         } else {
           console.error("Error closing ticket:", response.message);
           // Handle error (e.g., show an error message)
@@ -69,46 +68,46 @@ const FeedbackForm = ({
 
   const handleReopen = () => {
     const newStatus = "open";
-    const ticketId = currentChat.ticketDetails._id;
+    const ticketId = selectedConversation.ticketId._id;
+    const roomId =  selectedConversation.roomId;
 
     socket.emit(
       "updateTicketStatus",
       {
         ticketId,
         status: newStatus,
+        roomId: roomId,
       },
       (response) => {
         if (response.success) {
           console.log("Ticket status updated successfully.", response);
 
-          // Update the status in the current chat
-          setStatus(newStatus);
-          setCurrentChat((prev) => ({
-            ...prev,
-            ticketDetails: {
-              ...prev.ticketDetails,
-              status: newStatus,
-            },
-          }));
-
-          // Update the status in the chats array
-          console.log("roomId", roomId);
-          setChats((prevChats) =>
-            prevChats.map((chat) =>
-              chat.assignedRoom.roomId === roomId
-                ? {
-                    ...chat,
-                    assignedRoom: {
-                      ...chat.assignedRoom,
-                      ticketDetails: {
-                        ...chat.assignedRoom.ticketDetails,
-                        status: newStatus,
-                      },
-                    },
+          setConversations((prevConversations) => {
+            return prevConversations.map((conversation) => {
+              if (conversation.roomId === roomId) {
+                // Update the status of the ticketId in the selected conversation
+                return {
+                  ...conversation,
+                  ticketId: {
+                    ...conversation.ticketId,
+                    status: newStatus
                   }
-                : chat
-            )
-          );
+                };
+              }
+              return conversation;
+            });
+          });
+    
+          if (selectedConversation && roomId === selectedConversation.roomId) {
+            setSelectedConversation((prevSelectedConversation) => ({
+              ...prevSelectedConversation,
+              ticketId:{
+                ...prevSelectedConversation.ticketId,
+                status: newStatus
+              }
+            }));
+          }
+
         } else {
           console.error("Error updating ticket status:", response.message);
         }
@@ -122,7 +121,7 @@ const FeedbackForm = ({
   };
 
   return (
-    <div className="feedback-form w-2/3 ml-20 items-center justify-center bg-white shadow-md rounded-lg p-4 w-full">
+    <div className="w-2/3 items-center ml-20 mt-10 justify-center bg-white shadow-md rounded-lg p-4">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">Feedback</h2>
       <form onSubmit={handleSubmit}>
         <div className="mb-5">
@@ -131,11 +130,11 @@ const FeedbackForm = ({
           </label>
           <p className="text-xs flex mb-2">(Click an icon below)</p>
           <div className="flex space-x-2">
-            {["😡", "😞", "😐", "😊", "😁"].map((emoji, index) => (
+            {["😁", "😊", "😐", "😞", "😡"].map((emoji, index) => (
               <label
                 key={index}
                 className={`flex items-center cursor-pointer ${
-                  rating === (index + 1).toString()
+                  rating === (5 - index).toString()
                     ? "bg-blue-400 rounded-full p-0.5"
                     : ""
                 }`}
@@ -143,15 +142,15 @@ const FeedbackForm = ({
                 <input
                   type="radio"
                   name="rating"
-                  value={index + 1}
-                  checked={rating === (index + 1).toString()}
+                  value={5 - index}
+                  checked={rating === (5 - index).toString()}
                   onChange={(e) => setRating(e.target.value)}
                   className="hidden"
                   required
                 />
                 <span
                   className={`text-5xl ${
-                    rating === (index + 1).toString()
+                    rating === (5 - index).toString()
                       ? "text-blue-500"
                       : "text-gray-700"
                   }`}

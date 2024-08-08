@@ -6,17 +6,15 @@ import Message from "./Message";
 import Auth from "./Auth";
 import ChatList from "./ChatList";
 import Draggable from "react-draggable";
+import axios from "axios";
 
 const socket = io("http://localhost:8000");
 
 const ChatWindow = () => {
-  const [messages, setMessages] = useState({});
   const [message, setMessage] = useState("");
   const [attachment, setAttachment] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
   const [attachmentType, setAttachmentType] = useState(null);
-  const [chats, setChats] = useState([]);
-  const [currentChat, setCurrentChat] = useState(null);
   const [view, setView] = useState("chatList"); // 'chatList' or 'message'
   const [token, setToken] = useState(null);
   const [ticketDetails, setTicketDetails] = useState({});
@@ -25,6 +23,8 @@ const ChatWindow = () => {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const isDragging = useRef(false);
   const clickStartTime = useRef(null);
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
 
   const handleStart = () => {
     isDragging.current = true;
@@ -37,39 +37,121 @@ const ChatWindow = () => {
 
     // Check if the drag duration is short to consider it as a click
     const clickDuration = Date.now() - clickStartTime.current;
-    if (clickDuration < 200) { // Adjust the duration threshold as needed
+    if (clickDuration < 200) {
+      // Adjust the duration threshold as needed
       setIsOpen(true);
     }
   };
 
-  
+  console.log({ conversations });
+  console.log({ selectedConversation });
+
+  useEffect(() => {
+    const fetchConversations = async () => {
+      if (!customerDetails) return;
+      try {
+        const customerId = customerDetails._id; // Access customer ID from props
+
+        // Make the API request to fetch conversations for the customer
+        const response = await axios.get(
+          `${process.env.REACT_APP_CHAT_MICROSERVICE_URL}/conversations/${customerId}`
+        );
+
+        // Update the state with the fetched conversations
+        setConversations(response.data);
+      } catch (error) {
+        console.error("Error fetching conversations:", error);
+      }
+    };
+
+    // Fetch conversations when component mounts or customerDetails changes
+    fetchConversations();
+  }, [customerDetails]);
+
   useEffect(() => {
     setToken(localStorage.getItem("token"));
-    setCustomerDetails(localStorage.getItem("customerDetails"));
+    setCustomerDetails(JSON.parse(localStorage.getItem("customerDetails")));
   }, []);
+
+  useEffect(() => {
+    // Listen for the 'message' event
+    socket.on("message", (message) => {
+      console.log("Received new message:", message);
+
+      setConversations((prevConversations) => {
+        return prevConversations.map((conversation) => {
+          if (conversation.roomId === message.room) {
+            // Update the messages in the selected conversation
+            return {
+              ...conversation,
+              messages: [...conversation.messages, message],
+            };
+          }
+          return conversation;
+        });
+      });
+
+      if (selectedConversation && message.room === selectedConversation.roomId) {
+        setSelectedConversation((prevSelectedConversation) => ({
+          ...prevSelectedConversation,
+          messages: [...prevSelectedConversation.messages, message],
+        }));
+      }
+    });
+
+    socket.on("ticketStatusUpdated", (response) => {
+      console.log("Ticket status changed to: ", response.status);
+
+      setConversations((prevConversations) => {
+        return prevConversations.map((conversation) => {
+          if (conversation.roomId === response.roomId) {
+            // Update the status of the ticketId in the selected conversation
+            return {
+              ...conversation,
+              ticketId: {
+                ...conversation.ticketId,
+                status: response.status
+              }
+            };
+          }
+          return conversation;
+        });
+      });
+
+      if (selectedConversation && response.roomId === selectedConversation.roomId) {
+        setSelectedConversation((prevSelectedConversation) => ({
+          ...prevSelectedConversation,
+          ticketId:{
+            ...prevSelectedConversation.ticketId,
+            status: response.status
+          }
+        }));
+      }
+
+    })
+
+    // Clean up the socket listener on unmount
+    return () => {
+      socket.off("message");
+      socket.off("ticketStatusUpdated");
+    };
+  }, [selectedConversation]);
 
   useEffect(() => {
     console.log("Connecting to socket...");
 
     socket.on("connect", () => {
       console.log("Socket connected:", socket.id);
-      socket.emit("join");
     });
 
-    socket.on("message", (message) => {
-      console.log("Received new message:", message);
-      setMessages((prevMessages) => ({
-        ...prevMessages,
-        [message.room]: [...(prevMessages[message.room] || []), message],
-      }));
-    });
+    // Emit all roomIds to join
+    const roomIds = conversations.map((conversation) => conversation.roomId);
+    socket.emit("join", roomIds);
 
     return () => {
       console.log("Cleaning up socket listeners...");
-      socket.off("assignedRoom");
-      socket.off("message");
     };
-  }, []);
+  }, [selectedConversation]);
 
   useEffect(() => {
     if (attachment) {
@@ -80,7 +162,7 @@ const ChatWindow = () => {
   const sendMessage = () => {
     if (message.trim() || attachment) {
       const msg = {
-        room: currentChat.roomId,
+        room: selectedConversation.roomId,
         sender: "Customer",
         message,
         attachment,
@@ -98,17 +180,17 @@ const ChatWindow = () => {
     console.log("new chat clicked");
     const roomId = `Room-${new Date().getTime()}`;
     const customerId = customerDetails._id;
-    console.log("ticketId", ticketId);
-    socket.emit("createRoom", roomId, ticketId, customerId, (assignedRoom) => {
-      setCurrentChat(assignedRoom);
-      console.log("assigned room: ", assignedRoom);
-      setChats((prevChats) => [...prevChats, { assignedRoom }]);
+    socket.emit("createRoom", roomId, ticketId, customerId, (response) => {
+      if (response.success) {
+        setConversations((prevConversations) => [
+          ...prevConversations,
+          response.conversation,
+        ]);
+      }
+      console.log("assigned room: ", response.conversation);
     });
     setTicketId(null);
   };
-
-  console.log("currentCHat", currentChat);
-  console.log("chats: ", chats);
 
   return (
     <div className="chat-container">
@@ -133,22 +215,18 @@ const ChatWindow = () => {
               <ChatList
                 setTicketDetails={setTicketDetails}
                 ticketDetails={ticketDetails}
-                chats={chats}
                 setTicketId={setTicketId}
                 ticketId={ticketId}
-                currentChat={currentChat}
-                setCurrentChat={(chatId) => {
-                  setCurrentChat(chatId);
-                  setView("message");
-                }}
+                setSelectedConversation={setSelectedConversation}
+                setView={setView}
                 createNewChat={createNewChat}
+                conversations={conversations}
               />
             ) : (
               <Message
-                currentChat={currentChat}
-                setCurrentChat={setCurrentChat}
-                setChats={setChats}
-                messages={messages[currentChat.roomId] || []}
+                selectedConversation={selectedConversation}
+                setSelectedConversation={setSelectedConversation}
+                setConversations={setConversations}
                 setMessage={setMessage}
                 message={message}
                 setAttachment={setAttachment}
@@ -168,9 +246,7 @@ const ChatWindow = () => {
           onStart={handleStart}
           onStop={handleStop}
         >
-          <div
-            className="chat-toggle-icon"
-          >
+          <div className="chat-toggle-icon">
             <img src={logo} alt="Chat" draggable="false" />
           </div>
         </Draggable>
